@@ -1,0 +1,84 @@
+pipeline {
+  agent {
+    kubernetes {
+      yaml """
+kind: Pod
+spec:
+  containers:
+  containers:
+  - name: repo
+    image: python:slim
+    command:
+    - cat
+    tty: true
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:debug
+    imagePullPolicy: Always
+    command:
+    - sleep
+    args:
+    - 9999999
+    volumeMounts:
+      - name: jenkins-docker-cfg
+        mountPath: /kaniko/.docker
+  volumes:
+  - name: jenkins-docker-cfg
+    projected:
+      sources:
+      - secret:
+          name: docker-credentials
+          items:
+            - key: .dockerconfigjson
+              path: config.json
+"""
+    }
+  }
+  stages {
+    stage('Build with Kaniko') {
+      steps {
+
+
+       script {
+                container('repo') {
+                    withCredentials([
+               string(credentialsId: 'REPO_CREDS_ID', variable: 'REPO_PRIVATE_TOKEN'),
+              ])
+              {
+               sh '''
+                  echo "Login to CI Repo..."
+                  echo $REPO_PRIVATE_TOKEN
+                  apt update -y && apt install -y git
+                  git clone https://oauth2:${REPO_PRIVATE_TOKEN}@github.com/ashaik65/jenkins-kaniko.git
+                  ls
+
+               '''
+              }
+            }
+
+
+       }
+
+
+
+
+
+
+        container(name: 'kaniko', shell: '/busybox/sh') {
+          sh '''#!/busybox/sh
+             ls
+             pwd
+             cd jenkins-k8-cicd
+             ls
+             echo "FROM nginx:latest" > Dockerfile
+            /kaniko/executor --context   `pwd` --destination ashaik65/kaniko:latest 
+          '''
+        }
+
+
+
+      }
+    }
+  }
+
+
+}
